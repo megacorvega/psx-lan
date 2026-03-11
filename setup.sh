@@ -6,14 +6,40 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-echo "=========================================================="
-echo "   psx-pi-smbshare - Ubuntu Server Docker Port Setup      "
-echo "=========================================================="
+echo "======================================"
+echo "   psx-lan - Docker Setup script      "
+echo "======================================"
 echo ""
 
+prompt_step() {
+    local step_title="$1"
+    local step_desc="$2"
+    echo ""
+    echo "$step_title"
+    echo "Description: $step_desc"
+    while true; do
+        read -p "Do you want to proceed with this step? [Y/n]: " consent
+        consent=${consent:-Y}
+        case "$consent" in
+            [Yy]* ) return 0 ;;
+            [Nn]* ) return 1 ;;
+            * ) echo "Please answer yes (y) or no (n)." ;;
+        esac
+    done
+}
+
 # 1. Interactive Prompts
-read -p "Enter your LAN interface (e.g., eth0): " LAN_IF
-read -p "Enter your WLAN interface (e.g., wlan0): " WLAN_IF
+AVAILABLE_INTERFACES=$(ls /sys/class/net | grep -v 'lo' | tr '\n' ' ' | sed 's/ $//')
+RECOMMENDED_LAN=$(ls /sys/class/net | grep -E '^en|^eth' | head -n 1)
+RECOMMENDED_WLAN=$(ls /sys/class/net | grep -E '^wl|^wlan' | head -n 1)
+
+echo "Available network interfaces: $AVAILABLE_INTERFACES"
+
+read -p "Enter your LAN interface [Default: ${RECOMMENDED_LAN:-eth0}]: " LAN_IF
+LAN_IF=${LAN_IF:-${RECOMMENDED_LAN:-eth0}}
+
+read -p "Enter your WLAN interface [Default: ${RECOMMENDED_WLAN:-wlan0}]: " WLAN_IF
+WLAN_IF=${WLAN_IF:-${RECOMMENDED_WLAN:-wlan0}}
 read -p "Enter the absolute path for your shared STORAGE (e.g., /mnt/games): " STORAGE_PATH
 read -p "Enter the absolute path for your CONFIGURATION files (e.g., /opt/psx-server): " CONFIG_PATH
 
@@ -26,40 +52,47 @@ for dir in "$STORAGE_PATH" "$CONFIG_PATH/samba" "$CONFIG_PATH/dnsmasq"; do
     fi
 done
 
-echo ""
-echo "[1/6] Installing dependencies (Docker, Compose, Iptables-persistent)..."
-apt-get update
-apt-get install -y docker.io docker-compose iptables iptables-persistent netfilter-persistent wireless-tools
+if prompt_step "[1/6] Installing dependencies" "This will install Docker, Docker Compose, Iptables/Netfilter-persistent, and wireless-tools from the Ubuntu repositories."; then
+  apt-get update
+  apt-get install -y docker.io docker-compose iptables iptables-persistent netfilter-persistent wireless-tools
+else
+  echo "Skipping dependency installation."
+fi
 
-echo ""
-echo "[2/6] Enabling IP Forwarding..."
-sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
-sysctl -p > /dev/null
+if prompt_step "[2/6] Enabling IP Forwarding" "This enables the kernel to route network traffic between your interfaces, which is necessary so the PS2 can communicate with the rest of the network."; then
+  sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
+  sysctl -p > /dev/null
+else
+  echo "Skipping IP forwarding."
+fi
 
-echo ""
-echo "[3/6] Configuring static IP (192.168.2.1) on $LAN_IF via Netplan..."
-cat <<EOF > /etc/netplan/99-psx-lan.yaml
+if prompt_step "[3/6] Configuring static IP on $LAN_IF" "This will configure $LAN_IF with a static IP of 192.168.2.1 using Netplan, so the PS2 can connect directly."; then
+  cat <<EOF > /etc/netplan/99-psx-lan.yaml
 network:
   version: 2
   ethernets:
     $LAN_IF:
       addresses: [192.168.2.1/24]
 EOF
-netplan apply
+  netplan apply
+else
+  echo "Skipping static IP configuration."
+fi
 
-echo ""
-echo "[4/6] Setting up Iptables routing (WLAN <--> LAN)..."
-iptables -t nat -A POSTROUTING -o $WLAN_IF -j MASQUERADE
-iptables -A FORWARD -i $WLAN_IF -o $LAN_IF -m state --state RELATED,ESTABLISHED -j ACCEPT
-iptables -A FORWARD -i $LAN_IF -o $WLAN_IF -j ACCEPT
-# Save rules so they persist on reboot
-netfilter-persistent save > /dev/null
+if prompt_step "[4/6] Setting up Iptables routing (WLAN <--> LAN)" "This creates iptables MASQUERADE and FORWARD rules to route PS2 internet traffic through your Wi-Fi, and saves the rules to persist on reboot."; then
+  iptables -t nat -A POSTROUTING -o $WLAN_IF -j MASQUERADE
+  iptables -A FORWARD -i $WLAN_IF -o $LAN_IF -m state --state RELATED,ESTABLISHED -j ACCEPT
+  iptables -A FORWARD -i $LAN_IF -o $WLAN_IF -j ACCEPT
+  # Save rules so they persist on reboot
+  netfilter-persistent save > /dev/null
+else
+  echo "Skipping Iptables routing setup."
+fi
 
-echo ""
-echo "[5/6] Disabling Wi-Fi Power Management for $WLAN_IF to fix slow speeds..."
-iw dev $WLAN_IF set power_save off
-# Create a systemd service to ensure power management stays off after reboots
-cat <<EOF > /etc/systemd/system/wifi-power-save-off.service
+if prompt_step "[5/6] Disabling Wi-Fi Power Management for $WLAN_IF" "This turns off Wi-Fi power saving to fix slow SMB transfer speeds, and creates a systemd service to persist this setting. Recommended."; then
+  iw dev $WLAN_IF set power_save off
+  # Create a systemd service to ensure power management stays off after reboots
+  cat <<EOF > /etc/systemd/system/wifi-power-save-off.service
 [Unit]
 Description=Disable WiFi Power Management
 After=network.target
@@ -71,15 +104,17 @@ ExecStart=/sbin/iw dev $WLAN_IF set power_save off
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl enable wifi-power-save-off.service > /dev/null
-systemctl start wifi-power-save-off.service
+  systemctl enable wifi-power-save-off.service > /dev/null
+  systemctl start wifi-power-save-off.service
+else
+  echo "Skipping Wi-Fi Power Management changes."
+fi
 
-echo ""
-echo "[6/6] Creating Accessible Configurations and Docker Compose..."
-cd "$CONFIG_PATH"
+if prompt_step "[6/6] Creating Configuration Files and Starting Docker" "This creates DNS/DHCP (dnsmasq) and SMB config files, generates a docker-compose.yml file, and starts the background services."; then
+  cd "$CONFIG_PATH"
 
-# Create dnsmasq.conf (mimicking wifi-to-eth-route.sh)
-cat <<EOF > "$CONFIG_PATH/dnsmasq/dnsmasq.conf"
+  # Create dnsmasq.conf (mimicking wifi-to-eth-route.sh)
+  cat <<EOF > "$CONFIG_PATH/dnsmasq/dnsmasq.conf"
 interface=$LAN_IF
 bind-dynamic
 server=1.1.1.1
@@ -88,8 +123,8 @@ bogus-priv
 dhcp-range=192.168.2.2,192.168.2.100,12h
 EOF
 
-# Create smb.conf (mimicking samba-init.sh)
-cat <<EOF > "$CONFIG_PATH/samba/smb.conf"
+  # Create smb.conf (mimicking samba-init.sh)
+  cat <<EOF > "$CONFIG_PATH/samba/smb.conf"
 [global]
 server min protocol = NT1
 workgroup = WORKGROUP
@@ -112,10 +147,8 @@ follow symlinks = yes
 wide links = yes
 EOF
 
-# Create docker-compose.yml
-cat <<EOF > "$CONFIG_PATH/docker-compose.yml"
-version: '3.8'
-
+  # Create docker-compose.yml
+  cat <<EOF > "$CONFIG_PATH/docker-compose.yml"
 services:
   samba:
     image: dperson/samba
@@ -128,6 +161,7 @@ services:
 
   dnsmasq:
     image: strm/dnsmasq
+    
     container_name: psx-dhcp
     network_mode: "host"
     cap_add:
@@ -137,8 +171,11 @@ services:
     restart: unless-stopped
 EOF
 
-echo "Starting Docker containers..."
-docker-compose up -d
+  echo "Starting Docker containers..."
+  docker-compose up -d
+else
+  echo "Skipping Configuration and Docker setup."
+fi
 
 echo ""
 echo "=========================================================="
