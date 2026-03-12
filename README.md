@@ -23,13 +23,11 @@ During execution, the script will prompt you to define your LAN interface, WLAN 
 
 The `setup.sh` script is interactive and will ask for your consent before proceeding with each of the following configuration steps:
 
-1. **Installs Dependencies**: Installs `docker.io`, `docker-compose`, `iptables`, `iptables-persistent`, `netfilter-persistent`, and `wireless-tools` from the standard repositories.
-2. **Enables IP Forwarding**: Modifies `/etc/sysctl.conf` to allow the kernel to route network traffic between your Wi-Fi and Ethernet interfaces.
-3. **Configures Static IP**: Uses Netplan to assign a static IP address (`192.168.2.1`) to your specified Ethernet (LAN) interface so the PS2 can connect directly.
-4. **Sets Up Iptables Routing**: Creates `MASQUERADE` and `FORWARD` rules to route PS2 internet traffic through your Wi-Fi interface. These rules are saved persistently.
-5. **Disables Wi-Fi Power Management**: Turns off power-saving features on your Wi-Fi interface to fix slow SMB transfer speeds, and creates a systemd service to keep this setting applied after reboots.
-6. **Configures and Starts Docker Services**: 
-    * Generates a `dnsmasq.conf` file to act as a DHCP server for the PS2.
+1. **Installs Dependencies**: Installs `docker.io`, `docker-compose`, and `wireless-tools` from the standard repositories.
+2. **Configures Static IP**: Uses Netplan to assign a static IP address (`192.168.2.1`) to your specified Ethernet (LAN) interface so the PS2 can connect directly.
+3. **Disables Wi-Fi Power Management**: Turns off power-saving features on your Wi-Fi interface to fix slow SMB transfer speeds, and creates a systemd service to keep this setting applied after reboots.
+4. **Configures and Starts Docker Services**: 
+    * Generates a `dnsmasq.conf` file to act as an isolated DHCP server for the PS2.
     * Generates an `smb.conf` file configured with the NT1 protocol (SMBv1), which is required for PS2 compatibility.
     * Creates a `docker-compose.yml` file and spins up the Samba and Dnsmasq containers in the background.
 

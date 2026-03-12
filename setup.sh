@@ -52,21 +52,14 @@ for dir in "$STORAGE_PATH" "$CONFIG_PATH/samba" "$CONFIG_PATH/dnsmasq"; do
     fi
 done
 
-if prompt_step "[1/6] Installing dependencies" "This will install Docker, Docker Compose, Iptables/Netfilter-persistent, and wireless-tools from the Ubuntu repositories."; then
+if prompt_step "[1/4] Installing dependencies" "This will install Docker, Docker Compose, and wireless-tools from the Ubuntu repositories."; then
   apt-get update
-  apt-get install -y docker.io docker-compose iptables iptables-persistent netfilter-persistent wireless-tools
+  apt-get install -y docker.io docker-compose wireless-tools
 else
   echo "Skipping dependency installation."
 fi
 
-if prompt_step "[2/6] Enabling IP Forwarding" "This enables the kernel to route network traffic between your interfaces, which is necessary so the PS2 can communicate with the rest of the network."; then
-  sed -i 's/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' /etc/sysctl.conf
-  sysctl -p > /dev/null
-else
-  echo "Skipping IP forwarding."
-fi
-
-if prompt_step "[3/6] Configuring static IP on $LAN_IF" "This will configure $LAN_IF with a static IP of 192.168.2.1 using Netplan, so the PS2 can connect directly."; then
+if prompt_step "[2/4] Configuring static IP on $LAN_IF" "This will configure $LAN_IF with a static IP of 192.168.2.1 using Netplan, so the PS2 can connect directly."; then
   cat <<EOF > /etc/netplan/99-psx-lan.yaml
 network:
   version: 2
@@ -79,17 +72,7 @@ else
   echo "Skipping static IP configuration."
 fi
 
-if prompt_step "[4/6] Setting up Iptables routing (WLAN <--> LAN)" "This creates iptables MASQUERADE and FORWARD rules to route PS2 internet traffic through your Wi-Fi, and saves the rules to persist on reboot."; then
-  iptables -t nat -A POSTROUTING -o $WLAN_IF -j MASQUERADE
-  iptables -A FORWARD -i $WLAN_IF -o $LAN_IF -m state --state RELATED,ESTABLISHED -j ACCEPT
-  iptables -A FORWARD -i $LAN_IF -o $WLAN_IF -j ACCEPT
-  # Save rules so they persist on reboot
-  netfilter-persistent save > /dev/null
-else
-  echo "Skipping Iptables routing setup."
-fi
-
-if prompt_step "[5/6] Disabling Wi-Fi Power Management for $WLAN_IF" "This turns off Wi-Fi power saving to fix slow SMB transfer speeds, and creates a systemd service to persist this setting. Recommended."; then
+if prompt_step "[3/4] Disabling Wi-Fi Power Management for $WLAN_IF" "This turns off Wi-Fi power saving to fix slow SMB transfer speeds, and creates a systemd service to persist this setting. Recommended."; then
   iw dev $WLAN_IF set power_save off
   # Create a systemd service to ensure power management stays off after reboots
   cat <<EOF > /etc/systemd/system/wifi-power-save-off.service
@@ -110,20 +93,19 @@ else
   echo "Skipping Wi-Fi Power Management changes."
 fi
 
-if prompt_step "[6/6] Creating Configuration Files and Starting Docker" "This creates DNS/DHCP (dnsmasq) and SMB config files, generates a docker-compose.yml file, and starts the background services."; then
+if prompt_step "[4/4] Creating Configuration Files and Starting Docker" "This creates DNS/DHCP (dnsmasq) and SMB config files, generates a docker-compose.yml file, and starts the background services."; then
   cd "$CONFIG_PATH"
 
-  # Create dnsmasq.conf (mimicking wifi-to-eth-route.sh)
+  # Create dnsmasq.conf
   cat <<EOF > "$CONFIG_PATH/dnsmasq/dnsmasq.conf"
 interface=$LAN_IF
 bind-dynamic
-server=1.1.1.1
 domain-needed
 bogus-priv
 dhcp-range=192.168.2.2,192.168.2.100,12h
 EOF
 
-  # Create smb.conf (mimicking samba-init.sh)
+  # Create smb.conf
   cat <<EOF > "$CONFIG_PATH/samba/smb.conf"
 [global]
 server min protocol = NT1
