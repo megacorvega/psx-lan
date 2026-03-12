@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Get the directory where setup.sh is located to ensure we find status.sh reliably
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+
 # Ensure the script is run as root
 if [ "$EUID" -ne 0 ]; then
   echo "Please run this script as root or with sudo."
@@ -179,9 +182,6 @@ fi
 
 echo ""
 echo "Running status check..."
-
-# Get the directory where setup.sh is located to ensure we find status.sh reliably
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 
 if [ -f "$SCRIPT_DIR/status.sh" ]; then
     chmod +x "$SCRIPT_DIR/status.sh"
