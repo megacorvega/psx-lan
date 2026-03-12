@@ -178,13 +178,14 @@ else
 fi
 
 echo ""
-echo "=========================================================="
-echo " Setup Complete! "
-echo "=========================================================="
-echo "Services are now running in Docker."
-echo "Configuration files are accessible at: $CONFIG_PATH"
-echo "Game Storage folder is at:             $STORAGE_PATH"
-echo ""
-echo "PS2 IP Gateway: 192.168.2.1"
-echo "SMB Share Path: \\\\<Ubuntu_WLAN_IP>\\share  (or \\\\192.168.2.1\\share from PS2)"
-echo "=========================================================="
+echo "Running status check..."
+
+# Get the directory where setup.sh is located to ensure we find status.sh reliably
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+
+if [ -f "$SCRIPT_DIR/status.sh" ]; then
+    chmod +x "$SCRIPT_DIR/status.sh"
+    "$SCRIPT_DIR/status.sh"
+else
+    echo "status.sh not found in the script directory. Skipping status check."
+fi

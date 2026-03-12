@@ -31,6 +31,17 @@ The `setup.sh` script is interactive and will ask for your consent before procee
     * Generates an `smb.conf` file configured with the NT1 protocol (SMBv1), which is required for PS2 compatibility.
     * Creates a `docker-compose.yml` file and spins up the Samba and Dnsmasq containers in the background.
 
+## Checking Status
+
+You can easily check the health and status of all components (Docker, Samba, DHCP, IP assignment, and Wi-Fi power management) using the included `status.sh` script.
+
+Make the script executable and run it:
+
+```bash
+chmod +x status.sh
+./status.sh
+```
+
 ## Connection Details
 
 Once the setup is complete, your PS2 can connect using the following details:
