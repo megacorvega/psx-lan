@@ -2,7 +2,7 @@
 
 A streamlined setup utility to serve game files over a PlayStation 2 Ethernet connection. 
 
-`psx-lan` configures a Linux host machine to act as a bridge between your Wi-Fi network and the PS2. Using Docker, it spins up a DHCP/DNS server and a PS2-compatible SMB share (SMBv1), while automatically handling network routing, IP forwarding, and power-management tweaks to ensure fast and reliable game loading.
+`psx-lan` configures a Linux host machine to act as an isolated file host for your PS2. Using Docker, it spins up a DHCP server and a PS2-compatible SMB share (SMBv1), while automatically handling power-management tweaks to ensure fast and reliable game loading.
 
 ## Prerequisites
 * A Debian/Ubuntu-based Linux machine (uses `apt-get` and `netplan`).
@@ -23,7 +23,7 @@ During execution, the script will prompt you to define your LAN interface, WLAN 
 
 The `setup.sh` script is interactive and will ask for your consent before proceeding with each of the following configuration steps:
 
-1. **Installs Dependencies**: Installs `docker.io`, `docker-compose`, and `wireless-tools` from the standard repositories.
+1. **Installs Dependencies**: Configures the official Docker apt repository to install `docker-ce` and `docker-compose-plugin`, and installs `wireless-tools` from the standard repositories.
 2. **Configures Static IP**: Uses Netplan to assign a static IP address (`192.168.2.1`) to your specified Ethernet (LAN) interface so the PS2 can connect directly.
 3. **Disables Wi-Fi Power Management**: Turns off power-saving features on your Wi-Fi interface to fix slow SMB transfer speeds, and creates a systemd service to keep this setting applied after reboots.
 4. **Configures and Starts Docker Services**: 

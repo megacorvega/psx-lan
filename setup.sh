@@ -52,9 +52,27 @@ for dir in "$STORAGE_PATH" "$CONFIG_PATH/samba" "$CONFIG_PATH/dnsmasq"; do
     fi
 done
 
-if prompt_step "[1/4] Installing dependencies" "This will install Docker, Docker Compose, and wireless-tools from the Ubuntu repositories."; then
+if prompt_step "[1/4] Installing dependencies" "This will install Docker via the official Docker apt repository, along with wireless-tools."; then
+  # Uninstall any conflicting unofficial packages just in case
+  apt-get remove -y docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc > /dev/null 2>&1
+
   apt-get update
-  apt-get install -y docker.io docker-compose wireless-tools
+  apt-get install -y ca-certificates curl wireless-tools
+
+  # Add Docker's official GPG key
+  install -m 0755 -d /etc/apt/keyrings
+  . /etc/os-release
+  curl -fsSL https://download.docker.com/linux/$ID/gpg -o /etc/apt/keyrings/docker.asc
+  chmod a+r /etc/apt/keyrings/docker.asc
+
+  # Add the repository to Apt sources
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$ID \
+    $VERSION_CODENAME stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+  # Install Docker Engine and the Compose plugin
+  apt-get update
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 else
   echo "Skipping dependency installation."
 fi
@@ -154,7 +172,7 @@ services:
 EOF
 
   echo "Starting Docker containers..."
-  docker-compose up -d
+  docker compose up -d
 else
   echo "Skipping Configuration and Docker setup."
 fi
