@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# psx-lan - Unified Setup, Status, and Uninstall Utility
+# emu-sff - Unified Setup, Status, and Uninstall Utility
 # ==============================================================================
 
 # Ensure the script is run as root
@@ -43,18 +43,18 @@ print_status() {
 # STATUS FUNCTION
 # ==============================================================================
 do_status() {
-    echo -e "\e[34m"
+    echo -e "\e[32m"
     cat << "EOF"
- ____  _____  __  __      _      _    _   _ 
-|  _ \/ ___ \ \ \/ /     | |    / \  | \ | |
-| |_) \___ \   \  /____  | |   / _ \ |  \| |
-|  __/ ___) |  /  \____| | |___/ ___ \| |\  |
-|_|   |____/  /_/\_\     |_____/_/   \_\_| \_|
+ _____ __  __ _   _       ___  _____ _____ 
+| ____|  \/  | | | |     / __||  ___|  ___|
+|  _| | |\/| | | | |____ \__ \| |_  | |_   
+| |___| |  | | |_| |____| ___)|  _| |  _|  
+|_____|_|  |_|\___/      |____/|_|   |_|   
 
 EOF
     echo -e "\e[0m"
     echo "================================================="
-    echo "             PSX-LAN Status Checker              "
+    echo "              EMU-SFF Status Checker             "
     echo "================================================="
     echo ""
 
@@ -66,14 +66,14 @@ EOF
     fi
 
     # 2. Check Samba Container
-    if [ "$(sudo docker inspect -f '{{.State.Running}}' psx-samba 2>/dev/null)" = "true" ]; then
+    if [ "$(sudo docker inspect -f '{{.State.Running}}' emu-samba 2>/dev/null)" = "true" ]; then
         print_status "Samba (SMBv1):      " "OK"
     else
         print_status "Samba (SMBv1):      " "ERROR"
     fi
 
     # 3. Check DHCP Container
-    if [ "$(sudo docker inspect -f '{{.State.Running}}' psx-dhcp 2>/dev/null)" = "true" ]; then
+    if [ "$(sudo docker inspect -f '{{.State.Running}}' emu-dhcp 2>/dev/null)" = "true" ]; then
         print_status "DHCP (Dnsmasq):     " "OK"
     else
         print_status "DHCP (Dnsmasq):     " "ERROR"
@@ -107,7 +107,7 @@ EOF
 # ==============================================================================
 do_setup() {
     echo "======================================"
-    echo "   psx-lan - Docker Setup script      "
+    echo "   emu-sff - Docker Setup script      "
     echo "======================================"
     echo ""
 
@@ -124,7 +124,7 @@ do_setup() {
     read -p "Enter your WLAN interface [Default: ${RECOMMENDED_WLAN:-wlan0}]: " WLAN_IF
     WLAN_IF=${WLAN_IF:-${RECOMMENDED_WLAN:-wlan0}}
     read -p "Enter the absolute path for your shared STORAGE (e.g., /mnt/games): " STORAGE_PATH
-    read -p "Enter the absolute path for your CONFIGURATION files (e.g., /opt/psx-server): " CONFIG_PATH
+    read -p "Enter the absolute path for your CONFIGURATION files (e.g., /opt/emu-server): " CONFIG_PATH
 
     # Ensure directories exist
     for dir in "$STORAGE_PATH" "$CONFIG_PATH/samba" "$CONFIG_PATH/dnsmasq"; do
@@ -160,8 +160,8 @@ do_setup() {
       echo "Skipping dependency installation."
     fi
 
-    if prompt_step "[2/4] Configuring static IP on $LAN_IF" "This will configure $LAN_IF with a static IP of 192.168.2.1 using Netplan, so the PS2 can connect directly."; then
-      cat <<EOF > /etc/netplan/99-psx-lan.yaml
+    if prompt_step "[2/4] Configuring static IP on $LAN_IF" "This will configure $LAN_IF with a static IP of 192.168.2.1 using Netplan, so the console can connect directly."; then
+      cat <<EOF > /etc/netplan/99-emu-sff.yaml
 network:
   version: 2
   ethernets:
@@ -235,7 +235,7 @@ EOF
 services:
   samba:
     image: dperson/samba
-    container_name: psx-samba
+    container_name: emu-samba
     network_mode: "host"
     volumes:
       - $STORAGE_PATH:/share
@@ -245,7 +245,7 @@ services:
   dnsmasq:
     image: strm/dnsmasq
     
-    container_name: psx-dhcp
+    container_name: emu-dhcp
     network_mode: "host"
     cap_add:
       - NET_ADMIN
@@ -270,17 +270,17 @@ EOF
 # ==============================================================================
 do_uninstall() {
     echo "======================================"
-    echo "   psx-lan - Uninstall Script         "
+    echo "   emu-sff - Uninstall Script         "
     echo "======================================"
     echo ""
-    echo "WARNING: This script will stop the PS2 networking services,"
+    echo "WARNING: This script will stop the networking services,"
     echo "remove the static IP configuration, and delete the generated"
     echo "configuration files."
     echo "Your game storage folder will NOT be deleted."
     echo ""
 
     # Are you sure prompt
-    read -p "Are you absolutely sure you want to uninstall psx-lan? [y/N]: " confirm_uninstall
+    read -p "Are you absolutely sure you want to uninstall emu-sff? [y/N]: " confirm_uninstall
     case "$confirm_uninstall" in 
       [yY][eE][sS]|[yY]) 
         echo "Proceeding with uninstall..."
@@ -296,23 +296,23 @@ do_uninstall() {
     read -p "Enter your WLAN interface to restore power management [Default: ${RECOMMENDED_WLAN:-wlan0}]: " WLAN_IF
     WLAN_IF=${WLAN_IF:-${RECOMMENDED_WLAN:-wlan0}}
 
-    read -p "Enter the absolute path where your CONFIGURATION files were stored (e.g., /opt/psx-server): " CONFIG_PATH
+    read -p "Enter the absolute path where your CONFIGURATION files were stored (e.g., /opt/emu-server): " CONFIG_PATH
 
     # STEP 1: Stop and remove containers
-    if prompt_step "[1/5] Stopping and Removing Docker Containers" "This will stop and delete the psx-samba and psx-dhcp containers."; then
+    if prompt_step "[1/5] Stopping and Removing Docker Containers" "This will stop and delete the emu-samba and emu-dhcp containers."; then
       echo "Stopping containers..."
-      docker stop psx-samba psx-dhcp > /dev/null 2>&1
+      docker stop emu-samba emu-dhcp > /dev/null 2>&1
       echo "Removing containers..."
-      docker rm psx-samba psx-dhcp > /dev/null 2>&1
+      docker rm emu-samba emu-dhcp > /dev/null 2>&1
       echo "Containers removed."
     else
       echo "Skipping container removal."
     fi
 
     # STEP 2: Undo Static IP
-    if prompt_step "[2/5] Removing Static IP (Netplan)" "This will delete the 99-psx-lan.yaml netplan config and re-apply network settings."; then
-      if [ -f "/etc/netplan/99-psx-lan.yaml" ]; then
-        rm -f /etc/netplan/99-psx-lan.yaml
+    if prompt_step "[2/5] Removing Static IP (Netplan)" "This will delete the 99-emu-sff.yaml netplan config and re-apply network settings."; then
+      if [ -f "/etc/netplan/99-emu-sff.yaml" ]; then
+        rm -f /etc/netplan/99-emu-sff.yaml
         netplan apply
         echo "Static IP configuration removed."
       else
@@ -387,7 +387,7 @@ do_uninstall() {
     echo "=========================================================="
     echo " Uninstall Complete! "
     echo "=========================================================="
-    echo "The psx-lan services have been successfully removed."
+    echo "The emu-sff services have been successfully removed."
     echo "Your game storage directory was left untouched."
     echo "=========================================================="
 }
@@ -398,7 +398,7 @@ do_uninstall() {
 
 show_menu() {
     echo "======================================"
-    echo "   psx-lan - Unified Utility Tool     "
+    echo "   emu-sff - Unified Utility Tool     "
     echo "======================================"
     echo "1) Run Setup / Install"
     echo "2) Check Status"
